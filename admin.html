@@ -311,7 +311,7 @@ function switchTab(id,el){
   el.classList.add('on');
   document.getElementById('tab-'+id).classList.add('on');
   if(id==='orders') renderOrders();
-  if(id==='menus') renderMenuPreview();
+  if(id==='menus'){ renderMenuVendorButtons(); renderMenuPreview(); }
   if(id==='vendors') renderVendorEditor();
 }
 
