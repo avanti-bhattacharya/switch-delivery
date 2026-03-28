@@ -118,10 +118,25 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:1rem 2
 .wh-row input:focus{border-color:var(--y)}
 .save-btn{background:var(--y);color:var(--blk);border:none;border-radius:8px;padding:10px 18px;font-family:var(--font-d);font-size:1rem;letter-spacing:1px;cursor:pointer}
 
+/* VENDOR EDITOR */
+.vendor-row{display:grid;grid-template-columns:100px 1fr 80px 80px 40px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid #1a1a1a}
+.vendor-row:last-child{border:none}
+.vendor-row label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;grid-column:1/-1;margin-top:4px;display:none}
+.vendor-row input{background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:7px 10px;color:var(--wht);font-size:13px;font-family:var(--font-b);outline:none;width:100%}
+.vendor-row input:focus{border-color:var(--y)}
+.vendor-row input[readonly]{color:var(--muted);cursor:not-allowed}
+.v-field-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.vr-header{display:grid;grid-template-columns:100px 1fr 80px 80px 40px;gap:8px;padding:4px 0 8px;border-bottom:1px solid #333;margin-bottom:4px}
+.vr-header span{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.del-vendor{background:#2a0a0a;color:#e88;border:1px solid #3a1a1a;border-radius:6px;padding:6px;font-size:14px;cursor:pointer;width:100%}
+.del-vendor:hover{background:#3a1010}
+.save-vendors-btn{background:var(--y);color:var(--blk);border:none;border-radius:8px;padding:10px 20px;font-family:var(--font-d);font-size:1rem;letter-spacing:1px;cursor:pointer;margin-top:1rem}
+
 @media(max-width:600px){
   nav{padding:.8rem 1rem}
   .tabs{padding:0 1rem;overflow-x:auto}
   .tab-content{padding:1rem}
+  .vendor-row{grid-template-columns:1fr 1fr;gap:6px}
 }
 </style>
 </head>
@@ -153,6 +168,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:1rem 2
   <div class="tabs">
     <div class="tab on" onclick="switchTab('orders',this)">Orders</div>
     <div class="tab" onclick="switchTab('menus',this)">Menus / CSV</div>
+    <div class="tab" onclick="switchTab('vendors',this)">Vendors</div>
     <div class="tab" onclick="switchTab('settings',this)">Settings</div>
   </div>
 
@@ -208,6 +224,21 @@ Chicken Biryani,130,Lunch,🍗<br><br>
         <div class="v-btn" onclick="setPreviewVendor('aroma',this)">Aroma</div>
       </div>
       <div id="menu-preview-content"></div>
+    </div>
+  </div>
+
+  <!-- VENDORS TAB -->
+  <div class="tab-content" id="tab-vendors">
+    <div class="sec-title">⚡ VENDORS</div>
+    <div class="card">
+      <div class="card-title">Manage restaurants & delivery fees</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:1rem;line-height:1.7">Add, rename, or remove vendors. Changes reflect on the ordering site immediately. The fee is charged per order from that vendor.</p>
+      <div id="vendor-list"></div>
+      <button class="confirm-btn" style="width:auto;margin-top:1rem;padding:10px 20px;font-size:1rem" onclick="addVendorRow()">+ Add Vendor</button>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color:#e88">⚠ Note on vendor IDs</div>
+      <p style="font-size:12px;color:var(--muted);line-height:1.7">The Vendor ID is used internally to link menus. Once you upload a menu for a vendor, don't change its ID or the menu link will break. Only rename the display name freely.</p>
     </div>
   </div>
 
@@ -289,6 +320,75 @@ function switchTab(id,el){
   document.getElementById('tab-'+id).classList.add('on');
   if(id==='orders') renderOrders();
   if(id==='menus') renderMenuPreview();
+  if(id==='vendors') renderVendorEditor();
+}
+
+// ── VENDORS ─────────────────────────────────────────────────
+const DEFAULT_VENDORS=[
+  {id:'dhanush', name:'Dhanush',       emoji:'🛒', fee:80},
+  {id:'illara',  name:'Illara Hotels', emoji:'🍽️', fee:100},
+  {id:'aroma',   name:'Aroma',         emoji:'🌿', fee:100}
+];
+
+function getVendors(){
+  try{ const s=localStorage.getItem('switch_vendors'); return s?JSON.parse(s):[...DEFAULT_VENDORS]; }
+  catch(e){ return [...DEFAULT_VENDORS]; }
+}
+
+function renderVendorEditor(){
+  const vendors=getVendors();
+  const list=document.getElementById('vendor-list');
+  list.innerHTML=`
+    <div class="vr-header">
+      <span>ID (fixed)</span><span>Display Name</span><span>Emoji</span><span>Fee (₹)</span><span></span>
+    </div>`+
+  vendors.map((v,i)=>`
+    <div class="vendor-row" id="vrow-${i}">
+      <input type="text" value="${v.id}" readonly title="ID cannot be changed after menu is uploaded">
+      <input type="text" class="v-name" value="${v.name}" placeholder="Restaurant name">
+      <input type="text" class="v-emoji" value="${v.emoji||'🍽️'}" placeholder="🍽️" style="text-align:center">
+      <input type="number" class="v-fee" value="${v.fee}" placeholder="100" min="0">
+      <button class="del-vendor" onclick="deleteVendorRow(${i})" title="Remove vendor">✕</button>
+    </div>`).join('');
+  const saveBtn=document.createElement('button');
+  saveBtn.className='save-vendors-btn';
+  saveBtn.textContent='SAVE CHANGES ⚡';
+  saveBtn.onclick=saveVendors;
+  list.appendChild(saveBtn);
+}
+
+function addVendorRow(){
+  const vendors=getVendors();
+  const newId='vendor'+Date.now().toString().slice(-4);
+  vendors.push({id:newId, name:'New Restaurant', emoji:'🍽️', fee:100});
+  localStorage.setItem('switch_vendors',JSON.stringify(vendors));
+  renderVendorEditor();
+}
+
+function deleteVendorRow(i){
+  const vendors=getVendors();
+  if(vendors.length<=1){alert('You need at least one vendor.');return}
+  if(!confirm(`Remove "${vendors[i].name}"? Their uploaded menu will still be saved but won't show on the site.`)) return;
+  vendors.splice(i,1);
+  localStorage.setItem('switch_vendors',JSON.stringify(vendors));
+  renderVendorEditor();
+}
+
+function saveVendors(){
+  const rows=document.querySelectorAll('.vendor-row');
+  const vendors=getVendors();
+  rows.forEach((row,i)=>{
+    if(!vendors[i]) return;
+    vendors[i].name=row.querySelector('.v-name').value.trim()||vendors[i].name;
+    vendors[i].emoji=row.querySelector('.v-emoji').value.trim()||'🍽️';
+    vendors[i].fee=parseInt(row.querySelector('.v-fee').value)||100;
+  });
+  localStorage.setItem('switch_vendors',JSON.stringify(vendors));
+  const btn=document.querySelector('.save-vendors-btn');
+  btn.textContent='✓ Saved!';
+  setTimeout(()=>{btn.textContent='SAVE CHANGES ⚡';},2000);
+  // refresh menus tab vendor buttons too
+  renderMenuPreview();
 }
 
 // ── CSV UPLOAD ───────────────────────────────────────────────
